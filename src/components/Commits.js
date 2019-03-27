@@ -1,26 +1,7 @@
 import React from 'react';
-import gql from 'graphql-tag';
 import { Query } from 'react-apollo';
 import sortBy from 'sort-by';
-
-const GET_COMMITS = gql`
-  query getCommits($name: String!) {
-    repository(owner: "the-road-to-learn-react", name: $name) {
-      object(expression: "master") {
-        ... on Commit {
-          history {
-            nodes {
-              author {
-                name
-              }
-            }
-            totalCount
-          }
-        }
-      }
-    }
-  }
-`;
+import { GET_COMMITS } from '../queries';
 
 const countCommits = commits => {
   const commitTally = {};
@@ -44,45 +25,52 @@ const countCommits = commits => {
   return sortedTally.slice(0, 5);
 };
 
-const Commits = ({repoInfo}) =>{
-    return (
-      <Query
-        query={GET_COMMITS}
-        variables={{ name: repoInfo.name }}
-      >
-        {({ data, loading }) => {
-          if (loading || !data) {
-            return <div>Loading...</div>;
-          }
-          const {
-            repository: {
-              object: {
-                history: { nodes, totalCount },
-              },
+const Commits = ({ repoInfo }) => {
+  return (
+    <Query query={GET_COMMITS} variables={{ name: repoInfo.name }}>
+      {({ data, loading }) => {
+        if (loading || !data) {
+          return <div>Loading...</div>;
+        }
+        const {
+          repository: {
+            object: {
+              history: { nodes, totalCount },
             },
-          } = data;
-          const sortedTally = countCommits(nodes);
-          return (
-            <div>
-              <h3>Total Commits: {totalCount}</h3>
-              <ul className="list-group">
-                <li className="list-group-item"><strong>Authors 
-                    <span className="pull-right">Commits</span>
-                    </strong>
+          },
+        } = data;
+        const sortedTally = countCommits(nodes);
+        return (
+          <div>
+            <h3>Total Commits: {totalCount}</h3>
+            <ul className="list-group">
+              <li className="list-group-item">
+                <strong>
+                  Authors
+                  <span className="pull-right">Commits</span>
+                </strong>
+              </li>
+              {sortedTally.map(singleAuthor => (
+                <li
+                  className="list-group-item"
+                  key={singleAuthor.name}
+                >
+                  <span className="badge" data-testid="commit-count">
+                    {singleAuthor.count}
+                  </span>
+                  <i
+                    className="glyphicon glyphicon-user"
+                    title="Author"
+                  />{' '}
+                  {singleAuthor.name}
                 </li>
-                {sortedTally.map(singleAuthor => (
-                  <li class="list-group-item">
-                  <span class="badge">{singleAuthor.count}</span>
-                    <i className="glyphicon glyphicon-user" title="Author"></i>
-                    {' '}{singleAuthor.name}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          );
-        }}
-      </Query>
-    );
-}
+              ))}
+            </ul>
+          </div>
+        );
+      }}
+    </Query>
+  );
+};
 
 export default Commits;
