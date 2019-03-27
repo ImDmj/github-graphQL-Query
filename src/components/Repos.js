@@ -28,7 +28,7 @@ const Repos = () =>{
       <Query query={GET_REPOSITORIES}>
         {({ data, loading }) => {
           if (loading || !data) {
-            return <div>Loading</div>;
+            return <div>Loading...</div>;
           } else {
             const {
               organization: {

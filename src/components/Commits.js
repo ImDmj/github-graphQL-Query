@@ -52,7 +52,7 @@ const Commits = ({repoInfo}) =>{
       >
         {({ data, loading }) => {
           if (loading || !data) {
-            return <div>Loading</div>;
+            return <div>Loading...</div>;
           }
           const {
             repository: {
