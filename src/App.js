@@ -1,11 +1,11 @@
 import React from 'react';
 import gql from 'graphql-tag';
-import { Query, Mutation } from 'react-apollo';
-
+import { Query } from 'react-apollo';
+import sortBy from 'sort-by';
 import './App.css';
 
-const GET_REPOSITORIES_OF_ORGANIZATION = gql`
-  {
+const GET_REPOSITORIES = gql`
+  query getRepositories {
     organization(login: "the-road-to-learn-react") {
       repositories(first: 20) {
         edges {
@@ -14,6 +14,9 @@ const GET_REPOSITORIES_OF_ORGANIZATION = gql`
             name
             url
             viewerHasStarred
+            stargazers {
+              totalCount
+            }
           }
         }
       }
@@ -21,104 +24,110 @@ const GET_REPOSITORIES_OF_ORGANIZATION = gql`
   }
 `;
 
-const STAR_REPOSITORY = gql`
-  mutation($id: ID!) {
-    addStar(input: { starrableId: $id }) {
-      starrable {
-        id
-        viewerHasStarred
+const GET_COMMITS = gql`
+  query getCommits($name: String!) {
+    repository(owner: "the-road-to-learn-react", name: $name) {
+      object(expression: "master") {
+        ... on Commit {
+          history {
+            nodes {
+              author {
+                name
+              }
+            }
+            totalCount
+          }
+        }
       }
     }
   }
 `;
 
-const App = () => (
-  <Query query={GET_REPOSITORIES_OF_ORGANIZATION}>
-    {({ data: { organization }, loading }) => {
-      if (loading || !organization) {
-        return <div>Loading ...</div>;
-      }
+const countCommits = commits => {
+  const commitTally = {};
+  commits.forEach(author => {
+    const {
+      author: { name },
+    } = author;
+    if (!commitTally[name]) {
+      commitTally[name] = 1;
+    } else {
+      commitTally[name]++;
+    }
+  });
+  console.log(commitTally);
+  const formattedTally = Object.entries(commitTally).map(
+    ([authorName, commitCount]) => ({
+      name: authorName,
+      count: commitCount,
+    }),
+  );
+  const sortedTally = formattedTally.sort(sortBy('-count'));
+  console.log(sortedTally);
+  return sortedTally.slice(0, 5);
+};
 
-      return (
-        <Repositories repositories={organization.repositories} />
-      );
-    }}
-  </Query>
+export default () => (
+  <React.Fragment>
+    <Query query={GET_REPOSITORIES}>
+      {({ data, loading }) => {
+        if (loading || !data) {
+          return <div>Loading</div>;
+        } else {
+          const {
+            organization: {
+              repositories: { edges: repos },
+            },
+          } = data;
+          return (
+            <div>
+              {repos.map(
+                ({ node: repoInfo }) =>
+                  console.log(repoInfo) || (
+                    <div>
+                      <h2>Repo: {repoInfo.name}</h2>
+                      <h3>
+                        Total stars: {repoInfo.stargazers.totalCount}
+                      </h3>
+                      <Query
+                        query={GET_COMMITS}
+                        variables={{ name: repoInfo.name }}
+                      >
+                        {({ data, loading }) => {
+                          if (loading || !data) {
+                            return <div>Loading</div>;
+                          }
+                          const {
+                            repository: {
+                              object: {
+                                history: { nodes, totalCount },
+                              },
+                            },
+                          } = data;
+                          const sortedTally = countCommits(nodes);
+                          return (
+                            <div>
+                              <h2>Total Commits: {totalCount}</h2>
+                              <ul>
+                                {sortedTally.map(singleAuthor => (
+                                  <li>
+                                    Author: {singleAuthor.name}:{' '}
+                                    Commit Count: {singleAuthor.count}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          );
+                        }}
+                      </Query>
+                      <hr />
+                    </div>
+                  ),
+              )}
+            </div>
+          );
+        }
+      }}
+    </Query>
+  </React.Fragment>
 );
-
-class Repositories extends React.Component {
-  state = {
-    selectedRepositoryIds: [],
-  };
-
-  toggleSelectRepository = (id, isSelected) => {
-    let { selectedRepositoryIds } = this.state;
-
-    selectedRepositoryIds = isSelected
-      ? selectedRepositoryIds.filter(itemId => itemId !== id)
-      : selectedRepositoryIds.concat(id);
-
-    this.setState({ selectedRepositoryIds });
-  };
-
-  render() {
-    return (
-      <RepositoryList
-        repositories={this.props.repositories}
-        selectedRepositoryIds={this.state.selectedRepositoryIds}
-        toggleSelectRepository={this.toggleSelectRepository}
-      />
-    );
-  }
-}
-
-const RepositoryList = ({
-  repositories,
-  selectedRepositoryIds,
-  toggleSelectRepository,
-}) => (
-  <ul>
-    {repositories.edges.map(({ node }) => {
-      const isSelected = selectedRepositoryIds.includes(node.id);
-
-      const rowClassName = ['row'];
-
-      if (isSelected) {
-        rowClassName.push('row_selected');
-      }
-
-      return (
-        <li className={rowClassName.join(' ')} key={node.id}>
-          <Select
-            id={node.id}
-            isSelected={isSelected}
-            toggleSelectRepository={toggleSelectRepository}
-          />{' '}
-          <a href={node.url}>{node.name}</a>{' '}
-          {!node.viewerHasStarred && <Star id={node.id} />}
-        </li>
-      );
-    })}
-  </ul>
-);
-
-const Star = ({ id }) => (
-  <Mutation mutation={STAR_REPOSITORY} variables={{ id }}>
-    {starRepository => (
-      <button type="button" onClick={starRepository}>
-        Star
-      </button>
-    )}
-  </Mutation>
-);
-
-const Select = ({ id, isSelected, toggleSelectRepository }) => (
-  <button
-    type="button"
-    onClick={() => toggleSelectRepository(id, isSelected)}
-  >
-    {isSelected ? 'Unselect' : 'Select'}
-  </button>
-);
-
-export default App;
